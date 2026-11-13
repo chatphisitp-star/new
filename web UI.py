@@ -1,5 +1,6 @@
 import io
 import re
+import gc
 import zipfile
 import pandas as pd
 import streamlit as st
@@ -13,9 +14,36 @@ st.set_page_config(
 )
 
 # ==================================================
+# 0. SECURITY & MEMORY WIPE FUNCTION
+# ==================================================
+if "uploader_reset_count" not in st.session_state:
+    st.session_state.uploader_reset_count = 0
+
+def wipe_all_data():
+    # 1. ล้างแคชข้อมูลที่ประมวลผลใน RAM
+    st.cache_data.clear()
+    # 2. รีเซ็ตตัวนับ Key ของ File Uploader เพื่อล้างไฟล์ทั้งหมดออกจากหน้าเว็บและ RAM
+    reset_id = st.session_state.uploader_reset_count + 1
+    # 3. ล้างค่าใน Session State ทั้งหมด
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    st.session_state.uploader_reset_count = reset_id
+    st.session_state.num_weeks = 2
+    # 4. บังคับคืนหน่วยความจำให้ระบบปฏิบัติการ
+    gc.collect()
+
+# ==================================================
 # 1. SIDEBAR CONFIGURATION
 # ==================================================
 st.sidebar.header("⚙️ การตั้งค่าระบบ")
+
+# ปุ่มล้างประวัติความปลอดภัยใน Sidebar
+st.sidebar.error("🔒 ความปลอดภัยของข้อมูล")
+if st.sidebar.button("🗑️ ล้างข้อมูลและประวัติทั้งหมด", use_container_width=True, type="primary"):
+    wipe_all_data()
+    st.rerun()
+st.sidebar.caption("กดปุ่มนี้เมื่อใช้งานเสร็จ เพื่อลบไฟล์ที่อัปโหลด กราฟ และข้อมูลใน RAM ทั้งหมดทันที")
+st.sidebar.divider()
 
 with st.sidebar.expander("📝 ปรับแต่งข้อความหัวข้อ (Headers)", expanded=False):
     app_title = st.text_input("หัวข้อหลัก (Title):", value=" CRS Gain Validator ")
@@ -219,12 +247,13 @@ st.number_input(
 st.caption(f"จำนวนชุดอัปโหลดปัจจุบัน: **{st.session_state.num_weeks}** ชุด")
 
 # --- ช่องอัปโหลดส่วนกลาง (ใช้ร่วมกันทุก Week) ---
+reset_suffix = st.session_state.uploader_reset_count
 st.info("⚡ **อัปโหลดด่วนสำหรับทุก Week:** ลากไฟล์วางช่องด้านล่างนี้เพื่อกระจายไฟล์ให้ทุก Week ใช้งานพร้อมกันทันที")
 global_up_files = st.file_uploader(
     "📂 ลากไฟล์ Excel ที่ต้องการใช้ร่วมกันในทุก Week (อัปโหลดครั้งเดียวได้ทุกชุด)",
     type=["xlsx"],
     accept_multiple_files=True,
-    key="global_uploader"
+    key=f"global_uploader_{reset_suffix}"
 )
 
 st.divider()
@@ -255,7 +284,7 @@ for i in range(0, st.session_state.num_weeks, cols_per_row):
                     f"📂 ลากไฟล์ Excel เพิ่มเติมเฉพาะชุดที่ {week_idx + 1}",
                     type=["xlsx"],
                     accept_multiple_files=True,
-                    key=f"uploader_{week_idx}"
+                    key=f"uploader_{week_idx}_{reset_suffix}"
                 )
                 
                 # รวมไฟล์ส่วนกลางเข้ากับไฟล์เฉพาะของ Week นั้นๆ
@@ -425,3 +454,9 @@ if chart_rows:
                             )
 
     st.success("🎉 ประมวลผลเรียบร้อยแล้ว!")
+
+    # ปุ่มล้างข้อมูลด้านล่างสุดหลังดาวน์โหลดเสร็จ
+    st.divider()
+    if st.button("🗑️ ดาวน์โหลดเสร็จแล้ว — ล้างข้อมูลและประวัติทั้งหมดออกจากระบบทันที", type="primary", use_container_width=True):
+        wipe_all_data()
+        st.rerun()
