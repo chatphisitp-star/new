@@ -101,7 +101,7 @@ def process_excel_fast(file_bytes: bytes, filename: str):
             elif clean_name == "pdschtypebgain":
                 found_pdsch = c_idx
 
-        # เมื่อเจอตราสารทั้ง 2 คอลัมน์ในแถวเดียวกัน ให้บันทึกตำแหน่งแล้วออกจากลูป
+        # เมื่อเจอทั้ง 2 คอลัมน์ในแถวเดียวกัน ให้บันทึกตำแหน่งแล้วออกจากลูป
         if found_crs is not None and found_pdsch is not None:
             header_row_idx = r_idx
             crs_col_idx = found_crs
@@ -188,7 +188,7 @@ def df_to_excel_bytes_styled(df: pd.DataFrame, highlight_type=None, target_col_i
     return output.getvalue()
 
 # ==================================================
-# 4. CONTROLS FOR ADDING/REMOVING WEEKS
+# 4. CONTROLS FOR ADDING/REMOVING WEEKS & GLOBAL UPLOAD
 # ==================================================
 st.markdown(f"### {section_manage_title}")
 
@@ -217,6 +217,16 @@ st.number_input(
 )
 
 st.caption(f"จำนวนชุดอัปโหลดปัจจุบัน: **{st.session_state.num_weeks}** ชุด")
+
+# --- ช่องอัปโหลดส่วนกลาง (ใช้ร่วมกันทุก Week) ---
+st.info("⚡ **อัปโหลดด่วนสำหรับทุก Week:** ลากไฟล์วางช่องด้านล่างนี้เพื่อกระจายไฟล์ให้ทุก Week ใช้งานพร้อมกันทันที")
+global_up_files = st.file_uploader(
+    "📂 ลากไฟล์ Excel ที่ต้องการใช้ร่วมกันในทุก Week (อัปโหลดครั้งเดียวได้ทุกชุด)",
+    type=["xlsx"],
+    accept_multiple_files=True,
+    key="global_uploader"
+)
+
 st.divider()
 
 # ==================================================
@@ -242,14 +252,22 @@ for i in range(0, st.session_state.num_weeks, cols_per_row):
                     key=name_key
                 )
                 up_files = st.file_uploader(
-                    f"📂 ลากไฟล์ Excel (ชุดที่ {week_idx + 1})",
+                    f"📂 ลากไฟล์ Excel เพิ่มเติมเฉพาะชุดที่ {week_idx + 1}",
                     type=["xlsx"],
                     accept_multiple_files=True,
                     key=f"uploader_{week_idx}"
                 )
+                
+                # รวมไฟล์ส่วนกลางเข้ากับไฟล์เฉพาะของ Week นั้นๆ
+                combined_files = []
+                if global_up_files:
+                    combined_files.extend(global_up_files)
+                if up_files:
+                    combined_files.extend(up_files)
+
                 weeks_data_list.append({
                     "name": w_name,
-                    "files": up_files if up_files else []
+                    "files": combined_files
                 })
 
 # ==================================================
